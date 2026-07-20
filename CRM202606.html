@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>顧客回饋與 CRM 數據儀表板</title>
+  <style>
+    :root {
+      --bg-cream: #F4F1EA;
+      --card-white: #FFFBF5;
+      --forest-green: #1B3B32;
+      --amber-orange: #D97D54;
+      --text-dark: #2C2A29;
+      --text-muted: #6E6A64;
+      --border-light: #E5E0D4;
+      --nps-green: #2E7D32;
+      --nps-red: #C62828;
+    }
+    
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Microsoft JhengHei", sans-serif;
+      background-color: var(--bg-cream);
+      color: var(--text-dark);
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    .deck-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* 簡報分頁基礎外殼 */
+    .slide {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.4s ease, visibility 0.4s;
+      padding: 5vh 6vw 12vh 6vw; 
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      background: var(--card-white);
+    }
+    
+    .slide.active {
+      opacity: 1;
+      visibility: visible;
+      z-index: 10;
+    }
+
+    /* 頂部標頭 */
+    .slide-header { margin-bottom: 14px; flex-shrink: 0; }
+    .slide-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--forest-green);
+      background: var(--bg-cream);
+      padding: 4px 10px;
+      border-radius: 4px;
+      letter-spacing: 1px;
+      margin-bottom: 4px;
+    }
+    .slide-header h2 { font-size: 28px; color: var(--forest-green); font-weight: 900; }
+    .slide-subtitle { font-size: 13.5px; color: var(--text-muted); margin-top: 2px; }
+
+    /* 大數據看板與卡片雙欄排版 */
+    .dashboard-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      width: 100%;
+      flex-grow: 1;
+      overflow: hidden;
+      align-items: stretch;
+    }
+
+    .db-card {
+      background: var(--bg-cream);
+      border: 1px solid var(--border-light);
+      border-radius: 12px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      overflow: hidden;
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--forest-green);
+      border-bottom: 1px solid var(--border-light);
+      padding-bottom: 6px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      word-break: keep-all;
+    }
+
+    /* 大數字指標塊 */
+    .metrics-row-container {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+      width: 100%;
+      margin-bottom: 14px;
+      flex-shrink: 0;
+    }
+    .m-mini-box {
+      background: rgba(27,59,50,0.02);
+      border: 1px solid var(--border-light);
+      padding: 10px;
+      border-radius: 8px;
+      text-align: center;
+    }
+    .m-num { font-size: 24px; font-weight: 900; color: var(--forest-green); }
+    .m-label { font-size: 11px; color: var(--text-muted); margin-top: 2px; font-weight: bold; }
+
+    /* 橫條統計圖組件 */
+    .chart-list-container {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      justify-content: center;
+      width: 100%;
+    }
+    .chart-bar-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .c-label { width: 110px; font-size: 13px; font-weight: 700; text-align: right; color: var(--text-dark); word-break: keep-all; }
+    .c-track { flex-grow: 1; height: 14px; background: var(--border-light); border-radius: 4px; overflow: hidden; }
+    .c-fill { height: 100%; background: var(--forest-green); border-radius: 4px; }
+    .c-fill.orange { background: var(--amber-orange); }
+    .c-value { width: 120px; font-size: 13px; font-weight: 700; color: var(--text-dark); text-align: left; word-break: keep-all; }
+
+    /* 琥珀橘重點高亮放大 (130% 有感放大) */
+    .orange-focus {
+      color: var(--amber-orange) !important;
+      font-weight: 900 !important;
+      font-size: 1.3em !important; 
+      display: inline-block;
+      word-break: keep-all;
+      padding: 0 2px;
+    }
+    .green-focus {
+      color: var(--forest-green) !important;
+      font-weight: 900 !important;
+      font-size: 1.3em !important;
+      display: inline-block;
+      word-break: keep-all;
+      padding: 0 2px;
+    }
+
+    /* 榮譽榜對等卡片排版 */
+    .praise-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      width: 100%;
+      flex-grow: 1;
+      overflow: hidden;
+    }
+    .praise-column-box {
+      background: var(--bg-cream);
+      border: 1px solid var(--border-light);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow-y: auto;
+    }
+    .praise-column-box::-webkit-scrollbar { width: 4px; }
+    .praise-column-box::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 2px; }
+
+    .praise-node {
+      background: var(--card-white);
+      border: 1px solid var(--border-light);
+      border-radius: 8px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    /* 指名標籤樣式：淡雅清晰 */
+    .staff-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 4px;
+      word-break: keep-all;
+    }
+    .staff-badge.front {
+      background: rgba(217, 125, 84, 0.1);
+      color: var(--amber-orange);
+      border: 1px solid var(--amber-orange);
+    }
+    .staff-badge.kitchen {
+      background: rgba(27, 59, 50, 0.08); 
+      color: var(--forest-green);
+      border: 1px solid var(--forest-green);
+    }
+
+    /* 顧客名字分離設計 */
+    .distinct-cust-name {
+      font-family: "Georgia", "Inter", serif;
+      font-weight: 900;
+      font-size: 13px;
+      color: var(--forest-green);
+      background: rgba(27, 59, 50, 0.05);
+      padding: 2px 6px;
+      border-radius: 4px;
+      letter-spacing: 0.5px;
+    }
+
+    /* 12筆留言左6右6矩陣基礎樣式與滾動槽 */
+    .matrix-12-wrapper {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      width: 100%;
+      flex-grow: 1;
+      overflow-y: auto; 
+      padding-right: 6px;
+    }
+    .matrix-12-wrapper::-webkit-scrollbar { width: 5px; }
+    .matrix-12-wrapper::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
+
+    .matrix-column-pane {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    /* 統一規格的留言卡片 */
+    .matrix-bubble-card {
+      background: var(--bg-cream);
+      border: 1px solid var(--border-light);
+      border-radius: 10px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .matrix-bubble-card.high-score {
+      border-left: 4px solid var(--amber-orange);
+      background: #FFFBF5;
+    }
+    .matrix-card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px dashed var(--border-light);
+      padding-bottom: 4px;
+    }
+    .matrix-card-body {
+      font-size: 13px;
+      line-height: 1.55;
+      color: var(--text-dark);
+      text-align: justify;
+      word-break: keep-all;
+    }
+
+    /* 第七頁：優化提醒放大 + 感想無框自然整合版面 */
+    .slide-seven-layout {
+      display: flex;
+      flex-direction: column;
+      gap: 35px; /* 拉大間距，看起來更舒服 */
+      width: 100%;
+      flex-grow: 1;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .slide-seven-layout::-webkit-scrollbar { width: 4px; }
+    .slide-seven-layout::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 2px; }
+
+    .optimization-split-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      width: 100%;
+      flex-shrink: 0;
+    }
+    .opt-box-card {
+      background: var(--bg-cream);
+      border: 1px solid var(--border-light);
+      border-radius: 12px;
+      padding: 24px; /* 稍微放大，版面更飽滿 */
+    }
+    .opt-box-title {
+      font-size: 16px; /* 稍微放大 */
+      font-weight: 800;
+      color: var(--forest-green);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .opt-bullet-list { list-style: none; }
+    .opt-bullet-list li {
+      font-size: 14px; /* 稍微放大 */
+      line-height: 1.6;
+      margin-bottom: 10px;
+      padding-left: 14px;
+      position: relative;
+      word-break: keep-all;
+    }
+    .opt-bullet-list li::before {
+      content: "•";
+      color: var(--amber-orange);
+      position: absolute;
+      left: 0;
+      font-weight: bold;
+    }
+
+    /* 徹底去除了格子框、背景、陰影的自然感想區 */
+    .conclusion-box-panel {
+      width: 100%;
+      background: transparent; 
+      border: none; 
+      padding: 10px 0; 
+      text-align: left;
+      flex-shrink: 0;
+      margin-top: 10px;
+      box-shadow: none; 
+    }
+    .conclusion-text-body {
+      font-size: 15.5px;
+      line-height: 1.8;
+      color: var(--text-dark);
+      text-align: justify;
+      word-break: keep-all;
+    }
+
+    /* 右下角導航按鈕 */
+    .global-nav {
+      position: absolute;
+      bottom: 16px;
+      right: 6vw; 
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      z-index: 100;
+    }
+    .nav-btn {
+      background: var(--forest-green);
+      border: none;
+      color: var(--bg-cream);
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 8px rgba(27,59,50,0.1);
+    }
+    .nav-btn:hover { background: var(--amber-orange); }
+    .progress-ind {
+      font-size: 13px;
+      font-weight: bold;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+      min-width: 50px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="deck-container" id="deck">
+
+    <!-- SLIDE 1: 封面 -->
+    <div class="slide active">
+      <div style="text-align: center; margin: auto; width: 100%; max-width: 800px; padding: 40px 0;">
+        <span class="slide-badge" style="font-size: 12px; padding: 6px 16px;">MUMU BACKSTAGE / CRM REPORT</span>
+        <h1 style="font-size: 54px; color: var(--forest-green); font-weight: 900; line-height: 1.2; margin: 20px 0; word-break: keep-all;">顧客回饋與 CRM 數據儀表板</h1>
+        <p style="font-size: 20px; color: var(--amber-orange); font-weight: 600; letter-spacing: 2px; word-break: keep-all;">聽見前線的聲音：看顧客如何感受到我們的用心與細節</p>
+        <div style="margin-top: 40px; height: 2px; background: var(--border-light); position: relative;">
+          <div style="position: absolute; top: -4px; left: 50%; transform: translateX(-50%); width: 10px; height: 10px; border-radius: 50%; background: var(--amber-orange);"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 2: CRM數據分析 (頁面一) -->
+    <div class="slide">
+      <div class="slide-header">
+        <span class="slide-badge">CRM DATA / PAGE 01</span>
+        <h2>CRM 數據分析：核心黏著度與回訪週期</h2>
+        <p class="slide-subtitle">基數：本階段共計 374 筆真實後台顧客填寫數據</p>
+      </div>
+
+      <div class="metrics-row-container">
+        <div class="m-mini-box" style="border-top: 3px solid var(--forest-green);"><div class="m-num">374</div><div class="m-label">總回饋數</div></div>
+        <div class="m-mini-box" style="border-top: 3px solid var(--nps-red);"><div class="m-num" style="color:var(--nps-red);">155</div><div class="m-label">低分體驗 (≤6分)</div></div>
+        <div class="m-mini-box" style="border-top: 3px solid #FBC02D;"><div class="m-num" style="color:#FBC02D;">56</div><div class="m-label">普通客群 (7-8分)</div></div>
+        <div class="m-mini-box" style="border-top: 3px solid var(--nps-green);"><div class="m-num" style="color:var(--nps-green);">163</div><div class="m-label">高推崇淨值 (9-10分)</div></div>
+        <div class="m-mini-box" style="border-top: 3px solid var(--amber-orange);"><div class="m-num" style="color:var(--amber-orange);">7.5</div><div class="m-label">推薦平均分</div></div>
+      </div>
+
+      <div class="dashboard-layout">
+        <div class="db-card">
+          <div class="card-title">🍽️ 顧客用餐次數佔比統計</div>
+          <div class="chart-list-container">
+            <div class="chart-bar-row">
+              <div class="c-label">初訪新客</div>
+              <div class="c-track"><div class="c-fill" style="width: 63%;"></div></div>
+              <div class="c-value"><span class="green-focus">234 筆</span> (63%)</div>
+            </div>
+            <div class="chart-bar-row">
+              <div class="c-label">2-3 次回訪</div>
+              <div class="c-track"><div class="c-fill" style="width: 22%;"></div></div>
+              <div class="c-value"><span>81 筆</span> (22%)</div>
+            </div>
+            <div class="chart-bar-row">
+              <div class="c-label">4-10 次熟客</div>
+              <div class="c-track"><div class="c-fill" style="width: 9%;"></div></div>
+              <div class="c-value"><span>33 筆</span> (9%)</div>
+            </div>
+            <div class="chart-bar-row">
+              <div class="c-label">10次以上狂熱</div>
+              <div class="c-track"><div class="c-fill orange" style="width: 7%;"></div></div>
+              <div class="c-value"><span class="orange-focus">26 筆</span> (7%)</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="db-card">
+          <div class="card-title">🔄 熟客回訪週期頻率統計</div>
+          <div class="chart-list-container">
+            <div class="chart-bar-row">
+              <div class="c-label">1 週內報到</div>
+              <div class="c-track"><div class="c-fill orange" style="width: 9%;"></div></div>
+              <div class="c-value"><span class="orange-focus">13 筆</span> (9%)</div>
+            </div>
+            <div class="chart-bar-row">
+              <div class="c-label">2-3 週回訪</div>
+              <div class="c-track"><div class="c-fill" style="width: 13%;"></div></div>
+              <div class="c-value"><span>18 筆</span> (13%)</div>
+            </div>
+            <div class="chart-bar-row">
+              <div class="c-label">1-3 個月</div>
+              <div class="c-track"><div class="c-fill" style="width: 34%;"></div></div>
+              <div class="c-value"><span>48 筆</span> (34%)</div>
+            </div>
+            <div class="chart-bar-row">
+              <div class="c-label">3 個月以上</div>
+              <div class="c-track"><div class="c-fill" style="width: 44%;"></div></div>
+              <div class="c-value"><span class="green-focus">62 筆</span> (44%)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 3: CRM數據分析 (頁面二) -->
+    <div class="slide">
+      <div class="slide-header">
+        <span class="slide-badge">CRM DATA / PAGE 02</span>
+        <h2>CRM 數據分析：客群屬性、滿意度與獲客管道大盤</h2>
+        <p class="slide-subtitle">精準定位客群特徵、流量來源與地區分佈佔比</p>
+      </div>
+
+      <div class="dashboard-layout">
+        <!-- 左欄：獲客管道橫條圖 + 品質滿意度 -->
+        <div class="db-card" style="display: flex; flex-direction: column; justify-content: space-between;">
+          <div>
+            <div class="card-title">🎯 獲客管道統計圖 (流量來源大盤)</div>
+            <div class="chart-list-container" style="gap:7px;">
+              <div class="chart-bar-row"><div class="c-label">親友介紹</div><div class="c-track"><div class="c-fill orange" style="width: 100%;"></div></div><div class="c-value"><span class="orange-focus">151 票</span></div></div>
+              <div class="chart-bar-row"><div class="c-label">Google 地圖</div><div class="c-track"><div class="c-fill" style="width: 71%;"></div></div><div class="c-value"><span>107 票</span></div></div>
+              <div class="chart-bar-row"><div class="c-label">Instagram</div><div class="c-track"><div class="c-fill" style="width: 62%;"></div></div><div class="c-value"><span>94 票</span></div></div>
+              <div class="chart-bar-row"><div class="c-label">路過看到</div><div class="c-track"><div class="c-fill" style="width: 25%;"></div></div><div class="c-value"><span>37 票</span></div></div>
+              <div class="chart-bar-row"><div class="c-label">部落客推薦</div><div class="c-track"><div class="c-fill" style="width: 19%;"></div></div><div class="c-value"><span>29 票</span></div></div>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; text-align: center; background: var(--forest-green); color: white; padding: 12px; border-radius: 8px;">
+            <div><div style="font-size:11px; opacity:0.8;">餐點品質星等</div><div style="font-size:22px; font-weight:900; color:var(--amber-orange);">4.9 ★</div></div>
+            <div><div style="font-size:11px; opacity:0.8;">服務品質星等</div><div style="font-size:22px; font-weight:900; color:var(--amber-orange);">4.9 ★</div></div>
+          </div>
+        </div>
+
+        <!-- 右欄：來源地區統計圖 + 年齡性別 -->
+        <div class="db-card" style="display: flex; flex-direction: column; justify-content: space-between;">
+          <div>
+            <div class="card-title">📍 顧客來源地區統計圖</div>
+            <div class="chart-list-container" style="gap:5px;">
+              <div class="chart-bar-row"><div class="c-label">就在附近</div><div class="c-track"><div class="c-fill orange" style="width: 100%;"></div></div><div class="c-value"><span class="orange-focus">148 人</span> (42%)</div></div>
+              <div class="chart-bar-row"><div class="c-label">南高雄</div><div class="c-track"><div class="c-fill" style="width: 44%;"></div></div><div class="c-value"><span>65 人</span> (18%)</div></div>
+              <div class="chart-bar-row"><div class="c-label">北高雄</div><div class="c-track"><div class="c-fill" style="width: 34%;"></div></div><div class="c-value"><span>51 人</span> (15%)</div></div>
+              <div class="chart-bar-row"><div class="c-label">東高雄</div><div class="c-track"><div class="c-fill" style="width: 25%;"></div></div><div class="c-value"><span>37 人</span> (10%)</div></div>
+              <div class="chart-bar-row"><div class="c-label">外縣市</div><div class="c-track"><div class="c-fill" style="width: 24%;"></div></div><div class="c-value"><span>36 人</span> (10%)</div></div>
+              <div class="chart-bar-row"><div class="c-label">鹽埕區</div><div class="c-track"><div class="c-fill" style="width: 5%;"></div></div><div class="c-value"><span>8 人</span> (2%)</div></div>
+            </div>
+          </div>
+          <div style="font-size:12px; font-weight:700; color:var(--text-dark); background:white; padding:10px; border-radius:8px; border:1px solid var(--border-light); margin-top:8px; line-height:1.4;">
+            👥 <strong>核心客群屬性：</strong>25-34歲主力佔 <span class="green-focus" style="font-size:12px!important;">43%</span> | 35-44歲佔 <span class="green-focus" style="font-size:12px!important;">28%</span> | <span class="orange-focus" style="font-size:12px!important;">女性顧客高達 77%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 4: 優秀內外場團隊指名名單 (各加滿 6 個，共 12 筆) -->
+    <div class="slide">
+      <div class="slide-header">
+        <span class="slide-badge">HONOR / 榮譽牆</span>
+        <h2>優秀內外場團隊指名表揚名單</h2>
+        <p class="slide-subtitle">前線的付出與細節，顧客都記在心裡──看夥伴們拿下的精彩讚譽！</p>
+      </div>
+
+      <div class="praise-grid">
+        <!-- 外場精選 6 個 -->
+        <div class="praise-column-box">
+          <div style="font-size:13.5px; font-weight:800; color:var(--forest-green); margin-bottom:4px;">📣 優秀外場主管名單 (精選 6 筆)</div>
+          <div class="praise-node">
+            <div style="display:flex; justify-content:space-between;"><span class="distinct-cust-name">劉怡婷</span><span class="staff-badge front">外場指名：柏凱 Kevin</span></div>
+            <p style="font-size:12px; line-height:1.4;">Kevin 都有在注意每位客人的需求，即使只是經過也有親切問候，非常有禮貌親切！</p>
+          </div>
+          <div class="praise-node">
+            <div style="display:flex; justify-content:space-between;"><span class="distinct-cust-name">吳亭</span><span class="staff-badge front">外場指名：馥伊 Iris</span></div>
+            <p style="font-size:12px; line-height:1.4;">Iris 主動積極反應迅速！跑上跑下很積極介紹，非常需要這種熱絡的氛圍！</p>
+          </div>
+          <div class="praise-node">
+            <div style="display:flex; justify-content:space-between;"><span class="distinct-cust-name">王予辰</span><span class="staff-badge front">外場指名：SARA</span></div>
+            <p style="font-size:12px; line-height:1.4;">謝謝 Sara 每次來都很熱情、服務非常周到，態度良好，愛死你們的餐點了！❤️</p>
+          </div>
+          <div class="praise-node">
+            <div style="display:flex; justify-content:space-between;"><span class="distinct-cust-name">如如</span><span class="staff-badge front">外場指名：柏凱 Kevin</span></div>
+            <p style="font-size:12px; line-height:1.4;">外場服務很周到，人很親切，男的帥，女的美~~</p>
+          </div>
+          <div class="praise-node">
+            <div style="display:flex; justify-content:space-between;"><span class="distinct-cust-name">黃顧客</span><span class="staff-badge front">外場指名：柏凱 Kevin</span></div>
+            <p style="font-size:12px; line-height:1.4;">謝謝你詳細、耐心、溫柔的介紹！這次到門店用餐真的非常愉快💕</p>
+          </div>
+          <div class="praise-node">
+            <div style="display:flex; justify-content:space-between;"><span class="distinct-cust-name">周宣均</span><span class="staff-badge front">外場指名：馥伊 Iris</span></div>
+            <p style="font-size:12px; line-height:1.4;">對自家品項與菜單內容都很熟悉～服務態度非常溫暖！</p>
+          </div>
+        </div>
+
+        <!-- 內場精選 6 個 -->
+        <div class="praise-column-box">
+          <div style="font-size:13.5px; font-weight:800; color:var(--forest-green); margin-bottom:4px;">🍳 優秀內場職人名單 (精選 6 筆)</div>
+          <div class="praise-node">
+            <div style="display:flex; justify-content:space-between;"><span class="distinct-cust-name">林蕙君</span><span class="staff-badge kitchen">內場指名：芸甄</span></div>
+            <p style="font-size:12px; line-height:1.4;">餐點品質太高了，東西超好吃！請老闆一定要幫內場加薪！謝謝你們的用心！</p>
+          </div>
+          <div class="praise-node">
+            <div style="display:flex; justify-content:space-between;"><span class="distinct-cust-name">如如小姐</span><span class="staff-badge kitchen">內場指名：庭嫻</span></div>
+            <p style="font-size:12px; line-height:1.4;">內場出餐速度超快，品質控制得非常好，餐點擺盤精緻，非常厲害！</p>
+          </div>
+          <div class="praise-node">
+            <div style="display:flex; justify-content:space-between;"><span class="distinct-cust-name">羅曉郁</span><span class="staff-badge kitchen">內場指名：庭嫻</span></div>
+            <p style="font-size:12px; line-height:1.4;">內場夥伴非常親切有禮，開放式廚房看起來很有紀律，請繼續永續經營！</p>
+          </div>
+          <div class="praise-node">
+            <div style="display:flex; justify-content:space-between;"><span class="distinct-cust-name">源源</span><span class="staff-badge kitchen">內場指名：YUAN</span></div>
+            <p style="font-size:12px; line-height:1.4;">內場餐點出餐迅速，YUAN 做菜非常專注，餐點品質完全沒話說！</p>
+          </div>
+          <div class="praise-node">
+            <div style="display:flex; justify-content:space-between;"><span class="distinct-cust-name">何小姐</span><span class="staff-badge kitchen">內場：全體內場夥伴</span></div>
+            <p style="font-size:12px; line-height:1.4;">非常感謝內場夥伴默默做出這麼好吃的餐點，下次絕對會再帶朋友回訪！</p>
+          </div>
+          <div class="praise-node">
+            <div style="display:flex; justify-content:space-between;"><span class="distinct-cust-name">吳亭</span><span class="staff-badge kitchen">內場指名：戴眼鏡夥伴</span></div>
+            <p style="font-size:12px; line-height:1.4;">內場戴眼鏡、中長髮的女生製作餐點很用心，出餐極具水準！</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 5: 開放性意見 (Open Feedback) -->
+    <div class="slide">
+      <div class="slide-header">
+        <span class="slide-badge">CUSTOMER FEEDBACK / 12 STORIES</span>
+        <h2>顧客真實評價牆：開放性意見回饋 (Open Feedback)</h2>
+        <p class="slide-subtitle">精選 12 筆長字數顧客用餐反饋（完美修復右側排版消失跑掉之盲點）</p>
+      </div>
+
+      <div class="matrix-12-wrapper">
+        <!-- 左欄 6 筆 -->
+        <div class="matrix-column-pane">
+          <div class="matrix-bubble-card high-score"><div class="matrix-card-top"><span class="distinct-cust-name">Chiao-yi Yang</span><span>推薦度：5 分</span></div><p class="matrix-card-body">等餐時我想先去二樓試吃燕麥，但被禮貌請出。餐點太好吃吃光超飽，血糖上升就沒買了。<span class="orange-focus">肚子餓比較會有購物衝動</span>。</p></div>
+          <div class="matrix-bubble-card high-score"><div class="matrix-card-top"><span class="distinct-cust-name">吳亭</span><span>推薦度：10 分</span></div><p class="matrix-card-body">這次酪梨雞肉三明治水平很高，芒果新鮮熟度剛好，<span class="orange-focus">牛油果醬有檸檬味且洋蔥味不重非常調和</span>，再附上獨家酸種麵包非常滿足。</p></div>
+          <div class="matrix-bubble-card high-score"><div class="matrix-card-top"><span class="distinct-cust-name">蔡靜儀</span><span>推薦度：10 分</span></div><p class="matrix-card-body">看到牆上的照片好像回到澳洲的感覺，<span class="orange-focus">經典大早餐跟澳洲吃到的一模一樣</span>🥹🥹，太有溫度了！</p></div>
+          <div class="matrix-bubble-card high-score"><div class="matrix-card-top"><span class="distinct-cust-name">盧小姐</span><span>推薦度：8 分</span></div><p class="matrix-card-body">今天的低脂雞肉早午餐很美味！食材新鮮營養。<span class="orange-focus">下次還想試看看其他精緻餐點</span>。❤️</p></div>
+          <div class="matrix-bubble-card high-score"><div class="matrix-card-top"><span class="distinct-cust-name">洪客</span><span>推薦度：10 分</span></div><p class="matrix-card-body">餐點非常驚艷好吃，<span class="orange-focus">送餐速度也很快</span>，環境與衛生管理都無可挑剔，期待再次回訪！</p></div>
+          <div class="matrix-bubble-card high-score"><div class="matrix-card-top"><span class="distinct-cust-name">方雅嬋</span><span>推薦度：9 分</span></div><p class="matrix-card-body">東西很好吃😋，<span class="orange-focus">服務人員也都非常親切</span>，氣氛極佳，非常適合跟朋友聚餐與約會。</p></div>
+        </div>
+        <!-- 右欄 6 筆 (已完全修復為 matrix-bubble-card 規格) -->
+        <div class="matrix-column-pane">
+          <div class="matrix-bubble-card high-score"><div class="matrix-card-top"><span class="distinct-cust-name">Ting Wu</span><span>推薦度：10 分</span></div><p class="matrix-card-body">澳牛堡薯條很脆不太鹹。🐔🥑🍔的<span class="orange-focus">美乃滋比較多，也許可以稍微減量</span>，因為裡面已經有起司，但肉質很彈。</p></div>
+          <div class="matrix-bubble-card high-score"><div class="matrix-card-top"><span class="distinct-cust-name">謝佳臻</span><span>推薦度：5 分</span></div><p class="matrix-card-body">培根真的好好吃，唯一缺點就是覺得太少了😆😆，薯餅跟自製番茄醬也好吃，<span class="orange-focus">比 M one 還好吃，好喜歡</span>！</p></div>
+          <div class="matrix-bubble-card high-score"><div class="matrix-card-top"><span class="distinct-cust-name">Ref. Liu</span><span>推薦度：5 分</span></div><p class="matrix-card-body">希望飲料的時間可以慢一點再上、<span class="orange-focus">吃完的時候熱拿鐵都冷掉了</span>，覺得有些可惜。</p></div>
+          <div class="matrix-bubble-card high-score"><div class="matrix-card-top"><span class="distinct-cust-name">劉怡婷</span><span>推薦度：9 分</span></div><p class="matrix-card-body">謝謝您們用心的服務跟優質餐點！很棒！<span class="orange-focus">希望能多推一點折價券給我們這些老粉絲</span>！</p></div>
+          <div class="matrix-bubble-card high-score"><div class="matrix-card-top"><span class="distinct-cust-name">余小姐</span><span>推薦度：8 分</span></div><p class="matrix-card-body">優格很好吃，大杯一點更好。或是其他餐點，<span class="orange-focus">開放讓顧客加點或加配料會更好</span>。</p></div>
+          <div class="matrix-bubble-card high-score"><div class="matrix-card-top"><span class="distinct-cust-name">沈小姐</span><span>推薦度：5 分</span></div><p class="matrix-card-body">餐點非常好。但對於<span class="orange-focus">現場交談聲較大聲及激動的顧客，外場可以稍加制止</span>以維持用餐氛圍。</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 6: 夥伴真實留言牆 (Staff Message) -->
+    <div class="slide">
+      <div class="slide-header">
+        <span class="slide-badge">PARTNER WALL / 12 MESSAGES</span>
+        <h2>夥伴真實留言牆：給前線工作夥伴的留言 (Staff Message)</h2>
+        <p class="slide-subtitle">精選 12 筆直接留給前線全體同仁與工作團隊的寫實體感</p>
+      </div>
+
+      <div class="matrix-12-wrapper">
+        <!-- 左欄 6 筆 -->
+        <div class="matrix-column-pane">
+          <div class="matrix-bubble-card high-score"><div class="matrix-card-top"><span class="distinct-cust-name">小恩</span><span>推薦度：9 分</span></div><p class="matrix-card-body">第一次來，從店門外準備進來和<span class="orange-focus">候位的引導可以再清楚一些</span>～不過用餐氛圍很棒且出餐超快！</p></div>
+          <div class="matrix-bubble-card high-score"><div class="matrix-card-top"><span class="distinct-cust-name">劉羽茜</span><span>推薦度：5 分</span></div><p class="matrix-card-body">謝謝 mumu 帶給高雄這麼好的味道，祝生意興隆，<span class="orange-focus">可可燕麥真滴好吃</span>～希望燕麥活動常有。</p></div>
+          <div class="matrix-bubble-card high-score"><div class="matrix-card-top"><span class="distinct-cust-name">吳亭</span><span>推薦度：10 分</span></div><p class="matrix-card-body"><span class="orange-focus">馥伊 Iris 主動、積極、反應迅速</span>！長髮戴眼鏡女生也積極介紹，很需要這種親切感覺！</p></div>
+          <div class="matrix-bubble-card high-score"><div class="matrix-card-top"><span class="distinct-cust-name">張棻棻</span><span>推薦度：10 分</span></div><p class="matrix-card-body">謝謝各位工作人員的付出，沒有各位的現場努力，我們是吃不到這麼<span class="orange-focus">好吃又有水準的質感早午餐</span>的！</p></div>
+          <div class="matrix-bubble-card high-score"><div class="matrix-card-top"><span class="distinct-cust-name">李欣芸</span><span>推薦度：8 分</span></div><p class="matrix-card-body">團隊非常專業！<span class="orange-focus">特別喜歡開放式廚房的設計</span>，讓我們可以全程看見大家專注工作的身影，讚！</p></div>
+          <div class="matrix-bubble-card high-score"><div class="matrix-card-top"><span class="distinct-cust-name">邱于珍</span><span>推薦度：10 分</span></div><p class="matrix-card-body">餐點非常好吃😋，2 樓的空間裝潢極其用心，用餐時<span class="orange-focus">會深深想起以前在澳洲慢活的種種美好回憶</span>。</p></div>
+        </div>
+        <!-- 右欄 6 筆 -->
+        <div class="matrix-column-pane">
+          <div class="matrix-bubble-card high-score"><div class="matrix-card-top"><span class="distinct-cust-name">洪嘉隆</span><span>推薦度：10 分</span></div><p class="matrix-card-body">沒有仔細看服務人員的名字，但是看到<span class="orange-focus">大家都好親切</span>，而且北非蛋真的好吃到讓人流眼淚！(;´༎ຶД༎ຶ`)</p></div>
+          <div class="matrix-bubble-card high-score"><div class="matrix-card-top"><span class="distinct-cust-name">劉怡婷</span><span>推薦度：9 分</span></div><p class="matrix-card-body"><span class="orange-focus">柏凱 Kevin 都有在注意每位客人的需求</span>，即使只是經過也親切問候，有禮貌又溫暖～謝謝！</p></div>
+          <div class="matrix-bubble-card high-score"><div class="matrix-card-top"><span class="distinct-cust-name">Ting Wu</span><span>推薦度：10 分</span></div><p class="matrix-card-body">大家都熱情接待，關注外場！雞肉酪梨堡的<span class="orange-focus">美乃滋稍多，建議可以稍微減量</span>平衡口感。</p></div>
+          <div class="matrix-bubble-card high-score"><div class="matrix-card-top"><span class="distinct-cust-name">李冠霈</span><span>推薦度：8 分</span></div><p class="matrix-card-body">工作人員很貼心，看到我在掃門口條碼，就<span class="orange-focus">主動走出來幫我開門招呼</span>，非常暖心，細節很棒。</p></div>
+          <div class="matrix-bubble-card high-score"><div class="matrix-card-top"><span class="distinct-cust-name">chuen</span><span>推薦度：8 分</span></div><p class="matrix-card-body">食物很好吃，服務也一級棒，謝謝現場所有的工作夥伴<span class="orange-focus">讓我們的早晨充滿溫暖</span> ☀️☀️☀️</p></div>
+          <div class="matrix-bubble-card high-score"><div class="matrix-card-top"><span class="distinct-cust-name">豪客</span><span>推薦度：10 分</span></div><p class="matrix-card-body">0628 下午 14:00 多在外面負責排隊後位接待的女生員工，<span class="orange-focus">態度真的非常親切</span>，感謝您❤️</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 7: 優化提醒 + 感想自然去框整合 (最終滿格無縫版) -->
+    <div class="slide">
+      <div class="slide-header">
+        <span class="slide-badge">IMPROVEMENT & SUMMARY</span>
+        <h2>好壞並蓄：前線優化提醒與團隊感想大盤</h2>
+      </div>
+
+      <div class="slide-seven-layout">
+        
+        <!-- 左右放大卡片優化 -->
+        <div class="optimization-split-layout">
+          <!-- 左欄 -->
+          <div class="opt-box-card" style="border-top: 4px solid var(--forest-green);">
+            <div class="opt-box-title">⚠️ 流程、動線與候位盲點優化</div>
+            <ul class="opt-bullet-list">
+              <li><strong>二樓商品陳列與購買流程 (Chiao-yi Yang)：</strong> 顧客等餐時想去二樓買燕麥，因現場流程限制被禮貌請出，吃飽後購物衝動熄滅。建工店大空間動線需更靈活。</li>
+              <li><strong>新客初訪引導盲區 (小恩)：</strong> 第一次進店用餐的新客人，對門口進店與候位排隊的動線表示「霧煞煞」。建工店有 55 席，必須建立更清晰的前台引導指示與排隊 SOP。</li>
+            </ul>
+          </div>
+          <!-- 右欄 -->
+          <div class="opt-box-card" style="border-top: 4px solid var(--amber-orange);">
+            <div class="opt-box-title" style="color:var(--amber-orange);">🥪 餐點風味與出餐時間軸校正</div>
+            <ul class="opt-bullet-list">
+              <li><strong>冷熱出餐時間軸錯位 (Liu)：</strong> 熱拿鐵與拼盤出餐時間軸未對齊，導致拼盤吃完時，拿鐵已完全冷掉。前端系統叫單與控單時，需加強控管「餐後飲料」的上餐節奏。</li>
+              <li><strong>醬料配比手感控制 (Ting Wu)：</strong> 雞肉堡已有起司，美乃滋手感過多會造成膩口。廚房必須透過央廚與精準計量工具，落實更嚴格的標準化控制。</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- 徹底去框、自然流暢的壓軸百字感想 -->
+        <div class="conclusion-box-panel">
+          <div style="font-size: 16px; font-weight: 800; color: var(--forest-green); margin-bottom: 10px; text-align: left;">🎯 總體感想：</div>
+          <p class="conclusion-text-body">
+            看完全部數據和留言，我感到非常驕傲！在競爭激烈的早午餐市場中，我們憑藉著團隊對食物的死磕與前線夥伴溫暖的雙手，硬是<span class="orange-focus">扛下了 4.9 星的超高滿意度防線</span>。無論是 Kevin、Iris 還是 芸甄、庭嫻，大家的名字都被顧客真切地記錄並感謝著。這些真實的文字，就是我們不搞組裝包、堅持手作職人精神的最美回報。謝謝全體夥伴的無私努力，我們證明了自己是全高雄最有溫度的職人餐廳，接下來的複製賽道，我們一定會贏！大家辛苦了！
+          </p>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- GLOBAL NAV CONTROLS (01 / 07 精確頁碼) -->
+    <div class="global-nav">
+      <button class="nav-btn" id="prevBtn" onclick="moveSlide(-1)">←</button>
+      <div class="progress-ind" id="progressIndicator">01 / 07</div>
+      <button class="nav-btn" id="nextBtn" onclick="moveSlide(1)">→</button>
+    </div>
+
+  </div>
+
+  <script>
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+    const indicator = document.getElementById('progressIndicator');
+
+    function updateSlides() {
+      slides.forEach((slide, index) => {
+        if(index === currentSlide) {
+          slide.classList.add('active');
+        } else {
+          slide.classList.remove('active');
+        }
+      });
+      indicator.innerText = `${String(currentSlide + 1).padStart(2, '0')} / ${String(slides.length).padStart(2, '0')}`;
+    }
+
+    function moveSlide(direction) {
+      currentSlide += direction;
+      if (currentSlide >= slides.length) currentSlide = 0;
+      if (currentSlide < 0) currentSlide = slides.length - 1;
+      updateSlides();
+    }
+
+    // 支援鍵盤左右方向鍵與空白鍵翻頁
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ') {
+        moveSlide(1);
+      } else if (e.key === 'ArrowLeft') {
+        moveSlide(-1);
+      }
+    });
+
+    updateSlides();
+  </script>
+</body>
+</html>
